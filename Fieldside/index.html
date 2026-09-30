@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Fieldside — Live Odds</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B1F17; --surface:#12291F; --line:#1B3A2A; --line-soft:#17301F;
+    --amber:#F2B705; --amber-dim:#8a6c08; --live:#E14B3D; --green:#4CAF6E;
+    --text:#F5F3EC; --muted:#8FA396;
+    box-sizing:border-box;
+    padding-top:env(safe-area-inset-top,0px);
+    padding-bottom:env(safe-area-inset-bottom,0px);
+  }
+  *{box-sizing:border-box;}
+  html,body{height:100%;}
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:'Inter',system-ui,sans-serif; font-size:15px; line-height:1.4;
+  }
+  h1,h2,h3,.num{font-family:'Space Grotesk',system-ui,sans-serif;}
+  .num{font-variant-numeric:tabular-nums;}
+  button{font-family:inherit;}
+
+  /* ---------- shell ---------- */
+  .shell{display:grid; grid-template-columns:200px 1fr 300px; min-height:100vh;}
+  @media (max-width:980px){ .shell{grid-template-columns:1fr;} .rail{display:none;} .slip{display:none;} }
+
+  header.top{
+    grid-column:1/-1; display:flex; align-items:center; justify-content:space-between;
+    padding:16px 24px; border-bottom:1px solid var(--line); position:sticky; top:0;
+    background:var(--bg); z-index:5; gap:12px; flex-wrap:wrap;
+  }
+  .brand{display:flex; align-items:center; gap:10px; cursor:pointer;}
+  .brand-mark{width:26px; height:26px; border-radius:50%; background:var(--amber); position:relative; flex:none;}
+  .brand-mark::after{content:"";position:absolute; inset:7px; border:2px solid var(--bg); border-radius:50%;}
+  .brand h1{font-size:18px; margin:0; letter-spacing:.01em;}
+  .top-mid{display:flex; gap:4px;}
+  .navlink{
+    background:none; border:none; color:var(--muted); font-size:13.5px; font-weight:500;
+    padding:8px 12px; cursor:pointer; border-radius:3px;
+  }
+  .navlink.active{color:var(--text); background:var(--surface);}
+  .navlink:hover{color:var(--text);}
+  .top-actions{display:flex; gap:10px; align-items:center;}
+  .btn{
+    font-family:'Inter'; font-size:13.5px; font-weight:600; border:none; cursor:pointer;
+    padding:9px 16px; border-radius:3px; transition:background .15s ease;
+  }
+  .btn-ghost{background:transparent; color:var(--text); border:1px solid var(--line);}
+  .btn-ghost:hover{background:var(--surface);}
+  .btn-amber{background:var(--amber); color:#1a1400;}
+  .btn-amber:hover{background:#ffce1a;}
+  .balance{font-size:13.5px; color:var(--muted); display:flex; align-items:center; gap:8px;}
+  .balance b{color:var(--text); font-family:'Space Grotesk';}
+  .acct-menu{position:relative;}
+  .acct-btn{
+    background:var(--surface); border:1px solid var(--line); color:var(--text);
+    padding:8px 14px; border-radius:3px; font-size:13.5px; font-weight:600; cursor:pointer;
+    display:flex; align-items:center; gap:8px;
+  }
+  .acct-drop{
+    display:none; position:absolute; right:0; top:calc(100% + 6px); background:var(--surface);
+    border:1px solid var(--line); border-radius:4px; min-width:180px; overflow:hidden; z-index:30;
+  }
+  .acct-drop.show{display:block;}
+  .acct-drop button{
+    display:block; width:100%; text-align:left; background:none; border:none; color:var(--text);
+    padding:11px 14px; font-size:13.5px; cursor:pointer;
+  }
+  .acct-drop button:hover{background:var(--bg);}
+  .acct-drop hr{border:none; border-top:1px solid var(--line); margin:0;}
+
+  /* ---------- left rail ---------- */
+  .rail{border-right:1px solid var(--line); padding:18px 0;}
+  .rail-title{font-size:11.5px; color:var(--muted); padding:0 20px 8px;}
+  .sport{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 20px; cursor:pointer; color:var(--muted); font-size:14px;
+    border-left:2px solid transparent;
+  }
+  .sport.active{color:var(--text); border-left-color:var(--amber); background:var(--surface);}
+  .sport:hover{color:var(--text);}
+  .sport .count{font-size:12px; color:var(--muted);}
+
+  /* ---------- main ---------- */
+  main{padding:24px; min-width:0;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .live-strip{
+    border:1px solid var(--line); border-radius:4px; background:var(--surface);
+    padding:18px 20px; margin-bottom:26px; display:flex; align-items:center; gap:22px; flex-wrap:wrap;
+  }
+  .live-tag{display:flex; align-items:center; gap:6px; color:var(--live); font-size:12.5px; font-weight:600;}
+  .live-dot{width:7px; height:7px; border-radius:50%; background:var(--live); animation:pulse 1.6s ease-in-out infinite;}
+  @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.35;}}
+  .live-teams{font-family:'Space Grotesk'; font-size:19px; display:flex; align-items:center; gap:12px;}
+  .live-score{color:var(--amber);}
+  .live-clock{color:var(--muted); font-size:13px;}
+  .live-odds{display:flex; gap:8px; margin-left:auto;}
+
+  .board-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:14px;}
+  .board-head h2{font-size:20px; margin:0;}
+  .board-head span{color:var(--muted); font-size:13px;}
+
+  .col-labels{
+    display:grid; grid-template-columns:1fr 64px 64px 64px; gap:6px;
+    padding:0 14px 8px; color:var(--muted); font-size:12px;
+  }
+  .col-labels div{text-align:center;}
+  .col-labels div:first-child{text-align:left;}
+
+  .match-row{
+    display:grid; grid-template-columns:1fr 64px 64px 64px; gap:6px; align-items:center;
+    padding:14px; border:1px solid var(--line-soft); border-radius:4px; margin-bottom:8px;
+    background:var(--surface);
+  }
+  .match-info .league{font-size:11.5px; color:var(--muted); margin-bottom:3px;}
+  .match-info .teams{font-size:15px; font-weight:500;}
+  .match-info .time{font-size:12px; color:var(--muted); margin-top:3px;}
+
+  .odd-btn{
+    background:var(--bg); border:1px solid var(--line); border-radius:3px;
+    color:var(--text); padding:9px 4px; text-align:center; cursor:pointer;
+    display:flex; flex-direction:column; gap:2px; transition:border-color .12s ease, background .12s ease;
+  }
+  .odd-btn .k{font-size:10.5px; color:var(--muted);}
+  .odd-btn .v{font-family:'Space Grotesk'; font-size:14.5px;}
+  .odd-btn:hover{border-color:var(--amber-dim);}
+  .odd-btn.selected{background:var(--amber); border-color:var(--amber);}
+  .odd-btn.selected .k, .odd-btn.selected .v{color:#1a1400;}
+
+  .empty-state{color:var(--muted); font-size:14px; padding:40px 0; text-align:center; border:1px dashed var(--line); border-radius:4px;}
+
+  /* ---------- my bets ---------- */
+  .bet-card{
+    border:1px solid var(--line-soft); border-radius:4px; background:var(--surface);
+    padding:16px; margin-bottom:10px;
+  }
+  .bet-card-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;}
+  .bet-status{font-size:11.5px; font-weight:600; padding:3px 9px; border-radius:20px;}
+  .bet-status.pending{color:var(--amber); background:rgba(242,183,5,.12);}
+  .bet-status.won{color:var(--green); background:rgba(76,175,110,.12);}
+  .bet-leg{font-size:13px; color:var(--muted); padding:4px 0; border-top:1px solid var(--line-soft);}
+  .bet-leg:first-of-type{border-top:none;}
+  .bet-leg b{color:var(--text); font-weight:500;}
+  .bet-foot{display:flex; justify-content:space-between; margin-top:10px; padding-top:10px; border-top:1px solid var(--line-soft); font-size:13px; color:var(--muted);}
+  .bet-foot b{color:var(--amber); font-family:'Space Grotesk'; font-size:15px;}
+
+  /* ---------- bet slip ---------- */
+  .slip{border-left:1px solid var(--line); display:flex; flex-direction:column; height:100vh; position:sticky; top:0;}
+  .slip-head{padding:18px 20px; border-bottom:1px solid var(--line);}
+  .slip-head h3{margin:0; font-size:16px;}
+  .slip-body{flex:1; overflow-y:auto; padding:14px 20px;}
+  .slip-empty{color:var(--muted); font-size:13.5px; padding:20px 0; text-align:center;}
+  .pick{
+    border:1px solid var(--line-soft); border-radius:4px; padding:12px; margin-bottom:10px; position:relative;
+  }
+  .pick .rm{position:absolute; top:8px; right:10px; background:none; border:none; color:var(--muted); cursor:pointer; font-size:15px; line-height:1;}
+  .pick .rm:hover{color:var(--live);}
+  .pick .pteams{font-size:13px; margin-bottom:4px; padding-right:16px;}
+  .pick .pmarket{font-size:12px; color:var(--muted); margin-bottom:6px;}
+  .pick .pval{font-family:'Space Grotesk'; color:var(--amber); font-size:15px;}
+  .slip-foot{border-top:1px solid var(--line); padding:16px 20px;}
+  .stake-row{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+  .stake-row label{font-size:13px; color:var(--muted);}
+  .stake-input{
+    width:100px; background:var(--surface); border:1px solid var(--line); color:var(--text);
+    font-family:'Space Grotesk'; font-size:15px; padding:7px 10px; border-radius:3px; text-align:right;
+  }
+  .payout-row{display:flex; justify-content:space-between; font-size:13.5px; margin-bottom:14px; color:var(--muted);}
+  .payout-row b{color:var(--amber); font-family:'Space Grotesk'; font-size:16px;}
+  .place-btn{width:100%; padding:12px; font-size:14px;}
+  .place-btn:disabled{background:var(--line); color:var(--muted); cursor:not-allowed;}
+  .insufficient{color:var(--live); font-size:12px; margin-top:-6px; margin-bottom:10px;}
+
+  /* mobile bottom bar */
+  .mobile-slip-bar{
+    display:none; position:fixed; left:0; right:0; bottom:0; z-index:10;
+    background:var(--amber); color:#1a1400; padding:14px 18px;
+    padding-bottom:calc(14px + env(safe-area-inset-bottom,0px));
+    align-items:center; justify-content:space-between; font-family:'Space Grotesk'; font-weight:600;
+    border:none; cursor:pointer; font-size:14px; width:100%;
+  }
+  @media (max-width:980px){ .mobile-slip-bar.show{display:flex;} main{padding-bottom:80px;} }
+
+  .sheet-overlay{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:20;
+  }
+  .sheet-overlay.show{display:block;}
+  .sheet{
+    position:fixed; left:0; right:0; bottom:0; max-height:80vh; background:var(--bg);
+    border-top:1px solid var(--line); border-radius:12px 12px 0 0; z-index:21;
+    display:flex; flex-direction:column; transform:translateY(100%); transition:transform .22s ease;
+  }
+  .sheet.show{transform:translateY(0);}
+  .sheet .slip-head{display:flex; justify-content:space-between; align-items:center;}
+  .sheet .slip-head button{background:none; border:none; color:var(--muted); font-size:20px; cursor:pointer;}
+
+  /* ---------- modals ---------- */
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:40;
+    align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-overlay.show{display:flex;}
+  .modal{
+    background:var(--surface); border:1px solid var(--line); border-radius:6px;
+    width:100%; max-width:360px; padding:24px;
+  }
+  .modal-top{display:flex; justify-content:space-between; align-items:center; margin-bottom:18px;}
+  .modal-top h3{margin:0; font-size:17px;}
+  .modal-top button{background:none; border:none; color:var(--muted); font-size:20px; cursor:pointer;}
+  .field{margin-bottom:14px;}
+  .field label{display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px;}
+  .field input{
+    width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text);
+    padding:10px 12px; border-radius:3px; font-size:14px; font-family:'Inter';
+  }
+  .field input:focus, .field select:focus{outline:2px solid var(--amber); outline-offset:1px;}
+  .field select{
+    width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text);
+    padding:10px 12px; border-radius:3px; font-size:13.5px; font-family:'Inter';
+  }
+  .wallet-bal-card{
+    border:1px solid var(--line); border-radius:6px; background:var(--surface);
+    padding:24px; max-width:360px;
+  }
+  .wsub{font-size:12.5px; color:var(--muted);}
+  .wbal{font-size:34px; margin:6px 0 18px;}
+  .wallet-actions{display:flex; gap:10px;}
+  .wallet-actions .btn{flex:1;}
+  .tx-row{
+    display:grid; grid-template-columns:1fr auto auto; gap:16px; align-items:center;
+    padding:13px 14px; border:1px solid var(--line-soft); border-radius:4px; margin-bottom:8px;
+    background:var(--surface); font-size:13.5px;
+  }
+  .tx-row .tx-type{font-weight:500;}
+  .tx-row .tx-time{color:var(--muted); font-size:12px; display:block; margin-top:2px;}
+  .tx-amt{font-family:'Space Grotesk'; font-size:15px;}
+  .tx-amt.pos{color:var(--green);}
+  .tx-amt.neg{color:var(--live);}
+  .bank-row{display:flex; justify-content:space-between; align-items:center; padding:10px 12px; border:1px solid var(--line-soft); border-radius:4px; margin-bottom:8px; background:var(--bg); font-size:13.5px;}
+  .bank-row span{color:var(--muted); font-size:12px;}
+  .bank-pick{display:block; width:100%; text-align:left; background:var(--bg); border:1px solid var(--line); color:var(--text); padding:12px; border-radius:3px; margin-bottom:8px; cursor:pointer; font-size:14px;}
+  .bank-pick:hover{border-color:var(--amber-dim);}
+  .payment-page{max-width:1040px; margin:0 auto;}
+  .payment-intro{display:flex; justify-content:space-between; align-items:flex-start; gap:20px; margin-bottom:22px;}
+  .payment-intro h2{font-size:25px; margin:0 0 6px;}
+  .payment-intro p{color:var(--muted); margin:0; font-size:13.5px;}
+  .payment-secure{display:flex; align-items:center; gap:8px; color:var(--green); font-size:12px; white-space:nowrap; border:1px solid var(--line); background:var(--surface); padding:8px 11px; border-radius:3px;}
+  .payment-overview{display:grid; grid-template-columns:1.3fr 1fr; gap:14px; margin-bottom:18px;}
+  .payment-balance,.payment-settlement{background:var(--surface); border:1px solid var(--line); border-radius:5px; padding:18px 20px;}
+  .payment-balance{display:flex; justify-content:space-between; align-items:center; gap:12px;}
+  .payment-overview-label{display:block; color:var(--muted); font-size:12px; margin-bottom:4px;}
+  .payment-balance-value{font-family:'Space Grotesk'; font-size:26px;}
+  .payment-settlement strong{font-family:'Space Grotesk'; font-size:14px; display:block; margin:3px 0;}
+  .payment-settlement p{color:var(--muted); font-size:12px; margin:0;}
+  .payment-grid{display:grid; grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr); gap:16px;}
+  .payment-card{border:1px solid var(--line); border-radius:5px; background:var(--surface); padding:20px;}
+  .payment-card-head{display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:18px;}
+  .payment-card-head h3{font-size:16px; margin:0 0 4px;}
+  .payment-card-head p{font-size:12px; color:var(--muted); margin:0;}
+  .payment-card .field{margin-bottom:16px;}
+  .payment-card .field input,.payment-card .field select{background:var(--bg);}
+  .payment-card .chip-row{margin:0 0 16px;}
+  .payment-card .chip{font-family:'Inter'; font-size:12px; color:var(--muted);}
+  .payment-card .chip:hover,.payment-card .chip.selected{color:#1a1400;}
+  .payment-card .chip.selected{font-weight:600;}
+  .payment-primary{width:100%; padding:12px;}
+  .payment-note{font-size:11.5px; color:var(--muted); line-height:1.5; margin:12px 0 0;}
+  .payment-method-list{margin:0 0 14px;}
+  .payment-method-empty{color:var(--muted); font-size:12.5px; line-height:1.5; border:1px dashed var(--line); border-radius:4px; padding:16px; margin-bottom:12px;}
+  .payment-methods-card .btn{width:100%;}
+  .payment-activity{margin-top:26px;}
+  .payment-activity .board-head{margin-bottom:12px;}
+  .payment-activity .board-head h2{font-size:16px;}
+  .payment-activity .tx-row{grid-template-columns:1fr auto;}
+  .payment-activity .bank-transfer-empty{padding:22px;}
+  @media (max-width:760px){
+    .payment-intro{flex-direction:column;}
+    .payment-overview,.payment-grid{grid-template-columns:1fr;}
+    .payment-balance{align-items:flex-start; flex-direction:column;}
+  }
+  .steps{display:flex; gap:6px; margin-top:6px;}
+  .steps i{font-style:normal; font-size:11.5px; padding:3px 8px; border-radius:20px; background:var(--bg); color:var(--muted); border:1px solid var(--line);}
+  .steps i.on{background:rgba(242,183,5,.14); color:var(--amber); border-color:var(--amber-dim);}
+  .rg-grid{display:grid; grid-template-columns:1fr 1fr; gap:20px;}
+  @media (max-width:760px){ .rg-grid{grid-template-columns:1fr;} }
+  .rg-copy{font-size:13.5px; color:var(--muted); line-height:1.6; margin:8px 0 14px;}
+  .rg-list{font-size:13px; color:var(--muted); line-height:2; padding-left:18px; margin:8px 0 0;}
+  .rg-list b{color:var(--text);}
+  .linklike{background:none; border:none; color:var(--amber); text-decoration:underline; cursor:pointer; font-size:inherit; padding:0; font-family:inherit;}
+  .site-footer{
+    grid-column:1/-1; border-top:1px solid var(--line); padding:22px 24px; background:var(--surface);
+  }
+  .footer-top{display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:12px;}
+  .footer-brand{display:flex; align-items:center; gap:8px; font-family:'Space Grotesk'; font-weight:600; font-size:14px;}
+  .footer-links{display:flex; gap:18px; flex-wrap:wrap;}
+  .flink{background:none; border:none; color:var(--muted); font-size:13px; cursor:pointer; padding:0;}
+  .flink:hover{color:var(--text);}
+  .footer-note{font-size:12px; color:var(--muted); line-height:1.6; max-width:760px; margin:0;}
+  .modal .btn{width:100%; margin-top:4px;}
+  .modal-note{font-size:12px; color:var(--muted); margin-top:14px; line-height:1.5;}
+  .chip-row{display:flex; gap:8px; margin-bottom:14px;}
+  .chip{flex:1; padding:9px 0; text-align:center; background:var(--bg); border:1px solid var(--line); border-radius:3px; cursor:pointer; font-size:13px; font-family:'Space Grotesk';}
+  .chip:hover{border-color:var(--amber-dim);}
+  .chip.selected{background:var(--amber); border-color:var(--amber); color:#1a1400;}
+
+  @media (prefers-reduced-motion:reduce){
+    .live-dot{animation:none;}
+    .sheet{transition:none;}
+  }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <header class="top">
+    <div class="brand" id="brandHome">
+      <div class="brand-mark"></div>
+      <h1>Fieldside</h1>
+    </div>
+    <nav class="top-mid">
+      <button class="navlink active" data-view="board">Sportsbook</button>
+      <button class="navlink" data-view="bets">My Bets</button>
+      <button class="navlink" data-view="wallet">Wallet</button>
+      <button class="navlink" data-view="bank">Payments</button>
+    </nav>
+    <div class="top-actions" id="topActionsLoggedOut">
+      <button class="btn btn-ghost" id="openLogin">Log in</button>
+      <button class="btn btn-amber" id="openSignup">Sign up</button>
+    </div>
+    <div class="top-actions" id="topActionsLoggedIn" style="display:none;">
+      <span class="balance">Balance <b id="balDisplay">$1,000.00</b></span>
+      <button class="btn btn-ghost" id="openDeposit">Deposit</button>
+      <div class="acct-menu">
+        <button class="acct-btn" id="acctBtn"><span id="acctName">Account</span> ▾</button>
+        <div class="acct-drop" id="acctDrop">
+          <button data-view="bets">My Bets</button>
+          <button data-view="wallet">Wallet</button>
+          <button data-view="bank">Payments</button>
+          <hr>
+          <button id="logoutBtn">Log out</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <nav class="rail" id="rail">
+    <div class="rail-title">Sports</div>
+    <div class="sport active" data-sport="Soccer">Soccer <span class="count">42</span></div>
+    <div class="sport" data-sport="Basketball">Basketball <span class="count">19</span></div>
+    <div class="sport" data-sport="Tennis">Tennis <span class="count">27</span></div>
+    <div class="sport" data-sport="Ice Hockey">Ice Hockey <span class="count">14</span></div>
+  </nav>
+
+  <main>
+    <div class="view active" id="view-board">
+      <div class="live-strip">
+        <div class="live-tag"><span class="live-dot"></span>LIVE</div>
+        <div class="live-teams">
+          Halden FK <span class="live-score num">1–1</span> Sarpsborg 08
+        </div>
+        <div class="live-clock num">67'</div>
+        <div class="live-odds" data-match="live-1" data-league="Norway · Eliteserien" data-teams="Halden FK vs Sarpsborg 08">
+          <div class="odd-btn" data-market="Match Result" data-sel="1" data-price="2.45">
+            <span class="k">1</span><span class="v num">2.45</span>
+          </div>
+          <div class="odd-btn" data-market="Match Result" data-sel="X" data-price="3.10">
+            <span class="k">X</span><span class="v num">3.10</span>
+          </div>
+          <div class="odd-btn" data-market="Match Result" data-sel="2" data-price="2.80">
+            <span class="k">2</span><span class="v num">2.80</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="board-head">
+        <h2 id="boardTitle">Soccer — Today</h2>
+        <span>1&nbsp;&nbsp;&nbsp;X&nbsp;&nbsp;&nbsp;2</span>
+      </div>
+
+      <div id="board"></div>
+    </div>
+
+    <div class="view" id="view-bets">
+      <div class="board-head"><h2>My Bets</h2></div>
+      <div id="betsList"></div>
+    </div>
+
+    <div class="view" id="view-wallet">
+      <div class="board-head"><h2>Wallet</h2></div>
+
+      <div class="wallet-summary">
+        <div class="wallet-bal-card">
+          <span class="wsub">Available balance</span>
+          <div class="wbal num" id="walletBalBig">$1,000.00</div>
+          <div class="wallet-actions">
+            <button class="btn btn-amber" id="walletDeposit">Deposit</button>
+            <button class="btn btn-ghost" id="walletWithdraw">Withdraw</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="board-head" style="margin-top:28px;"><h2 style="font-size:16px;">Deposit limit</h2></div>
+      <div class="wallet-bal-card" style="max-width:420px;">
+        <span class="wsub">Set a daily deposit limit to help you stay in control. Leave blank for no limit.</span>
+        <div class="field" style="margin-top:14px;"><label for="depLimitInput">Daily limit ($)</label><input id="depLimitInput" type="number" min="1" placeholder="e.g. 100"></div>
+        <button class="btn btn-ghost" id="saveLimitBtn">Save limit</button>
+        <div id="limitStatus" style="font-size:12.5px; color:var(--muted); margin-top:10px;"></div>
+      </div>
+
+      <div class="board-head" style="margin-top:28px;"><h2 style="font-size:16px;">Transaction history</h2></div>
+      <div id="txList"></div>
+    </div>
+
+    <div class="view" id="view-bank">
+      <div class="payment-page">
+        <div class="payment-intro">
+          <div><h2>Payments</h2><p>Manage your bank accounts and move money securely.</p></div>
+          <div class="payment-secure"><span aria-hidden="true">●</span> Provider-ready flow</div>
+        </div>
+
+        <div class="payment-overview">
+          <div class="payment-balance">
+            <div><span class="payment-overview-label">Available balance</span><div class="payment-balance-value num" id="paymentBalance">$1,000.00</div></div>
+            <button class="btn btn-ghost" data-view="wallet">View wallet</button>
+          </div>
+          <div class="payment-settlement">
+            <span class="payment-overview-label">Bank transfer timing</span>
+            <strong>Typically 1–3 business days</strong>
+            <p>Transfer status and updates appear in your activity below.</p>
+          </div>
+        </div>
+
+        <div class="payment-grid">
+          <section class="payment-card" aria-labelledby="transferHeading">
+            <div class="payment-card-head">
+              <div><h3 id="transferHeading">Move money</h3><p>Choose a direction and enter a transfer amount.</p></div>
+            </div>
+            <div class="chip-row" id="bankDirChips" role="group" aria-label="Transfer direction">
+              <button class="chip selected" type="button" data-dir="deposit" aria-pressed="true">Add funds</button>
+              <button class="chip" type="button" data-dir="withdraw" aria-pressed="false">Withdraw</button>
+            </div>
+            <div class="field"><label for="bankSelect">Bank account</label><select id="bankSelect" aria-describedby="bankAccountHint"></select><p class="payment-note" id="bankAccountHint" style="margin-top:6px;">Select a linked checking account for this transfer.</p></div>
+            <div class="field"><label for="bankAmt">Amount (USD)</label><input id="bankAmt" type="number" min="1" step="0.01" placeholder="Enter amount"></div>
+            <div class="chip-row payment-amounts" id="bankAmountChips" role="group" aria-label="Suggested transfer amounts">
+              <button class="chip" type="button" data-amount="25">$25</button>
+              <button class="chip" type="button" data-amount="50">$50</button>
+              <button class="chip" type="button" data-amount="100">$100</button>
+              <button class="chip" type="button" data-amount="250">$250</button>
+            </div>
+            <div class="insufficient" id="bankMsg" role="alert" style="display:none;"></div>
+            <button class="btn btn-amber payment-primary" id="bankTransferBtn">Continue</button>
+            <p class="payment-note">Transfers shown here are simulated. A real payment provider and server confirmation are required before real funds can move.</p>
+          </section>
+
+          <section class="payment-card payment-methods-card" aria-labelledby="methodsHeading">
+            <div class="payment-card-head">
+              <div><h3 id="methodsHeading">Your bank accounts</h3><p>Linked accounts are ready for deposits and withdrawals.</p></div>
+            </div>
+            <div id="bankList" class="payment-method-list"></div>
+            <button class="btn btn-ghost" id="linkBankBtn">＋&nbsp; Link a bank account</button>
+            <p class="payment-note">In a live setup, bank credentials are entered only in your bank’s or payment provider’s secure window. Never enter your bank password on this page.</p>
+          </section>
+        </div>
+
+        <div class="payment-activity">
+          <div class="board-head"><h2>Recent bank transfers</h2><span>Latest activity</span></div>
+          <div id="transferList"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="view" id="view-responsible">
+      <div class="board-head"><h2>Responsible Gambling</h2></div>
+      <div class="rg-grid">
+        <div class="wallet-bal-card">
+          <span class="wsub">Take a break</span>
+          <p class="rg-copy">Pause your account for a fixed period. While paused you won't be able to deposit or place bets.</p>
+          <div class="chip-row">
+            <div class="chip" data-days="1">24 hours</div>
+            <div class="chip" data-days="7">7 days</div>
+            <div class="chip" data-days="30">30 days</div>
+          </div>
+          <button class="btn btn-amber" id="selfExcludeBtn" disabled>Start break</button>
+          <div id="selfExcludeStatus" style="font-size:12.5px; color:var(--live); margin-top:10px;"></div>
+        </div>
+        <div class="wallet-bal-card">
+          <span class="wsub">Deposit limit</span>
+          <p class="rg-copy">Manage how much you can deposit per day from the <button class="linklike" data-view="wallet">Wallet page</button>.</p>
+          <span class="wsub" style="display:block; margin-top:16px;">Get help</span>
+          <p class="rg-copy">If gambling stops being fun, free confidential support is available 24/7.</p>
+          <ul class="rg-list">
+            <li>National Problem Gambling Helpline (US): <b>1-800-522-4700</b></li>
+            <li>National Council on Problem Gambling: ncpgambling.org</li>
+            <li>GambleAware (UK): 0808 8020 133 · gambleaware.org</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <aside class="slip" id="desktopSlip">
+    <div class="slip-head"><h3>Bet Slip</h3></div>
+    <div class="slip-body" id="slipBodyDesktop"></div>
+    <div class="slip-foot" id="slipFootDesktop"></div>
+  </aside>
+</div>
+
+<div class="view" id="view-terms" style="padding:24px;">
+  <div class="board-head"><h2>Terms of Service</h2></div>
+  <p class="rg-copy">Placeholder terms — a real deployment needs jurisdiction-specific terms drafted with your licensing counsel, covering eligibility, bet settlement rules, self-exclusion, and dispute resolution.</p>
+</div>
+<div class="view" id="view-privacy" style="padding:24px;">
+  <div class="board-head"><h2>Privacy Policy</h2></div>
+  <p class="rg-copy">Placeholder policy — a real deployment needs a privacy policy covering KYC data handling, retention, and applicable regulations (e.g. GDPR, state gaming-commission rules).</p>
+</div>
+
+<footer class="site-footer">
+  <div class="footer-top">
+    <div class="footer-brand">
+      <div class="brand-mark"></div>
+      <span>Fieldside</span>
+    </div>
+    <nav class="footer-links">
+      <button class="flink" data-view="responsible">Responsible Gambling</button>
+      <button class="flink" data-view="terms">Terms of Service</button>
+      <button class="flink" data-view="privacy">Privacy Policy</button>
+      <button class="flink" id="footerSupport">Support</button>
+    </nav>
+  </div>
+  <p class="footer-note">You must be 18 years or older (21+ in some jurisdictions) to use this site. Gambling involves risk — only wager what you can afford to lose. This is a demo interface; no real money or wagers are involved.</p>
+</footer>
+
+<button class="mobile-slip-bar" id="mobileBar">
+  <span id="mobileBarLeft">0 selections</span>
+  <span id="mobileBarRight">Open slip</span>
+</button>
+
+<div class="sheet-overlay" id="overlay"></div>
+<div class="sheet" id="sheet">
+  <div class="slip-head">
+    <h3>Bet Slip</h3>
+    <button id="closeSheet" aria-label="Close">×</button>
+  </div>
+  <div class="slip-body" id="slipBodyMobile"></div>
+  <div class="slip-foot" id="slipFootMobile"></div>
+</div>
+
+<!-- Login modal -->
+<div class="modal-overlay" id="loginOverlay">
+  <div class="modal">
+    <div class="modal-top"><h3>Log in</h3><button class="closeModal" data-target="loginOverlay">×</button></div>
+    <form id="loginForm">
+      <div class="field"><label for="liUser">Username</label><input id="liUser" required placeholder="e.g. jordan92"></div>
+      <div class="field"><label for="liPass">Password</label><input id="liPass" type="password" required placeholder="••••••••"></div>
+      <button class="btn btn-amber" type="submit">Log in</button>
+    </form>
+    <p class="modal-note">Demo only — no account data leaves this browser tab.</p>
+  </div>
+</div>
+
+<!-- Signup modal -->
+<div class="modal-overlay" id="signupOverlay">
+  <div class="modal">
+    <div class="modal-top"><h3>Create account</h3><button class="closeModal" data-target="signupOverlay">×</button></div>
+    <form id="signupForm">
+      <div class="field"><label for="suUser">Username</label><input id="suUser" required placeholder="Pick a username"></div>
+      <div class="field"><label for="suEmail">Email</label><input id="suEmail" type="email" required placeholder="you@example.com"></div>
+      <div class="field"><label for="suPass">Password</label><input id="suPass" type="password" required placeholder="At least 8 characters" minlength="8"></div>
+      <button class="btn btn-amber" type="submit">Create account</button>
+    </form>
+    <p class="modal-note">Demo signup — starts you with a $1,000 mock balance. No real funds, no real identity checks.</p>
+  </div>
+</div>
+
+<!-- Deposit modal -->
+<div class="modal-overlay" id="depositOverlay">
+  <div class="modal">
+    <div class="modal-top"><h3>Deposit</h3><button class="closeModal" data-target="depositOverlay">×</button></div>
+    <div class="field">
+      <label for="depMethod">Payment method</label>
+      <select id="depMethod">
+        <option>Card ending •••• (connect provider)</option>
+        <option>Bank transfer (connect provider)</option>
+        <option>Wallet balance demo top-up</option>
+      </select>
+    </div>
+    <div class="chip-row" id="depositChips">
+      <div class="chip" data-amt="25">$25</div>
+      <div class="chip" data-amt="50">$50</div>
+      <div class="chip" data-amt="100">$100</div>
+      <div class="chip" data-amt="250">$250</div>
+    </div>
+    <div class="field"><label for="depAmt">Or enter amount ($)</label><input id="depAmt" type="number" min="1" placeholder="0"></div>
+    <button class="btn btn-amber" id="confirmDeposit">Add to balance</button>
+    <p class="modal-note">Demo only — adds mock funds locally. No real payment is captured or processed; a real deposit flow would hand off to a licensed payment processor's hosted checkout.</p>
+  </div>
+</div>
+
+<!-- Bank link modal -->
+<div class="modal-overlay" id="bankOverlay">
+  <div class="modal">
+    <div class="modal-top"><h3>Link a bank</h3><button class="closeModal" data-target="bankOverlay">×</button></div>
+    <div id="bankStep"></div>
+    <p class="modal-note">Demo stand-in for the provider's hosted window. In production this step is Stripe Financial Connections or Plaid Link, run by the provider.</p>
+  </div>
+</div>
+
+<!-- Withdraw modal -->
+<div class="modal-overlay" id="withdrawOverlay">
+  <div class="modal">
+    <div class="modal-top"><h3>Withdraw</h3><button class="closeModal" data-target="withdrawOverlay">×</button></div>
+    <div class="field">
+      <label for="wdMethod">Payout method</label>
+      <select id="wdMethod">
+        <option>Bank transfer (connect provider)</option>
+        <option>Original payment method</option>
+      </select>
+    </div>
+    <div class="field"><label for="wdAmt">Amount ($)</label><input id="wdAmt" type="number" min="1" placeholder="0"></div>
+    <div class="insufficient" id="wdWarn" style="display:none;">Exceeds available balance.</div>
+    <button class="btn btn-amber" id="confirmWithdraw">Request withdrawal</button>
+    <p class="modal-note">Demo only — deducts mock funds and logs a pending withdrawal. No real payout is issued.</p>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  const sportData = {
+    Soccer: [
+      {league:"England · Premier League", teams:"Arsenal vs Newcastle United", time:"Today, 15:00", id:"m1", odds:[["1","1.85"],["X","3.60"],["2","4.20"]]},
+      {league:"Spain · La Liga", teams:"Real Sociedad vs Girona", time:"Today, 17:30", id:"m2", odds:[["1","2.05"],["X","3.30"],["2","3.55"]]},
+      {league:"Germany · Bundesliga", teams:"Union Berlin vs Freiburg", time:"Today, 18:30", id:"m3", odds:[["1","2.70"],["X","3.25"],["2","2.55"]]},
+      {league:"Italy · Serie A", teams:"Fiorentina vs Torino", time:"Today, 20:45", id:"m4", odds:[["1","1.95"],["X","3.40"],["2","3.90"]]},
+      {league:"France · Ligue 1", teams:"Lens vs Rennes", time:"Tomorrow, 19:00", id:"m5", odds:[["1","2.15"],["X","3.20"],["2","3.30"]]},
+      {league:"Netherlands · Eredivisie", teams:"Twente vs Utrecht", time:"Tomorrow, 16:30", id:"m6", odds:[["1","1.70"],["X","3.90"],["2","4.60"]]},
+    ],
+    Basketball: [
+      {league:"USA · NBA", teams:"Celtics vs Knicks", time:"Today, 19:00", id:"b1", odds:[["1","1.55"],["X","—"],["2","2.45"]]},
+      {league:"USA · NBA", teams:"Warriors vs Nuggets", time:"Today, 21:30", id:"b2", odds:[["1","2.10"],["X","—"],["2","1.72"]]},
+      {league:"Spain · ACB", teams:"Real Madrid vs Barcelona", time:"Tomorrow, 18:00", id:"b3", odds:[["1","1.40"],["X","—"],["2","2.90"]]},
+    ],
+    Tennis: [
+      {league:"ATP · Shanghai", teams:"Alcaraz vs Sinner", time:"Today, 13:00", id:"t1", odds:[["1","1.90"],["X","—"],["2","1.90"]]},
+      {league:"WTA · Beijing", teams:"Swiatek vs Sabalenka", time:"Today, 15:30", id:"t2", odds:[["1","2.05"],["X","—"],["2","1.75"]]},
+    ],
+    "Ice Hockey": [
+      {league:"NHL", teams:"Maple Leafs vs Bruins", time:"Today, 23:00", id:"h1", odds:[["1","2.20"],["X","3.80"],["2","1.95"]]},
+      {league:"NHL", teams:"Oilers vs Avalanche", time:"Tomorrow, 02:00", id:"h2", odds:[["1","1.85"],["X","3.95"],["2","2.30"]]},
+    ]
+  };
+
+  let currentSport = "Soccer";
+  const board = document.getElementById("board");
+  const boardTitle = document.getElementById("boardTitle");
+
+  function renderBoard(sport){
+    currentSport = sport;
+    boardTitle.textContent = sport + " — Today";
+    board.innerHTML = "";
+    const labelsRow = document.createElement("div");
+    labelsRow.className = "col-labels";
+    labelsRow.innerHTML = "<div></div><div>1</div><div>X</div><div>2</div>";
+    board.appendChild(labelsRow);
+
+    sportData[sport].forEach(m=>{
+      const row = document.createElement("div");
+      row.className = "match-row";
+      row.dataset.match = m.id;
+      row.dataset.league = m.league;
+      row.dataset.teams = m.teams;
+      row.innerHTML = `
+        <div class="match-info">
+          <div class="league">${m.league}</div>
+          <div class="teams">${m.teams}</div>
+          <div class="time">${m.time}</div>
+        </div>
+        ${m.odds.map(([k,v])=> v==="—" ? `<div class="odd-btn" style="opacity:.35; cursor:default;"><span class="k">${k}</span><span class="v num">—</span></div>` : `
+          <div class="odd-btn" data-market="Match Result" data-sel="${k}" data-price="${v}">
+            <span class="k">${k}</span><span class="v num">${v}</span>
+          </div>`).join("")}
+      `;
+      board.appendChild(row);
+    });
+  }
+  renderBoard("Soccer");
+
+  document.getElementById("rail").addEventListener("click", e=>{
+    const item = e.target.closest(".sport");
+    if(!item) return;
+    document.querySelectorAll(".sport").forEach(s=>s.classList.remove("active"));
+    item.classList.add("active");
+    renderBoard(item.dataset.sport);
+  });
+
+  // ---------- view switching ----------
+  function showView(name){
+    document.querySelectorAll(".view").forEach(v=>v.classList.remove("active"));
+    document.getElementById("view-"+name).classList.add("active");
+    document.querySelectorAll(".navlink").forEach(b=>b.classList.toggle("active", b.dataset.view===name));
+    document.getElementById("acctDrop").classList.remove("show");
+  }
+  document.querySelectorAll("[data-view]").forEach(el=>{
+    el.addEventListener("click", ()=> showView(el.dataset.view));
+  });
+  document.getElementById("brandHome").addEventListener("click", ()=> showView("board"));
+  document.getElementById("footerSupport")?.addEventListener("click", ()=> showView("responsible"));
+
+  // ---------- deposit limit ----------
+  let depositLimit = null;
+  let depositedToday = 0;
+  document.getElementById("saveLimitBtn")?.addEventListener("click", ()=>{
+    const val = parseFloat(document.getElementById("depLimitInput").value);
+    depositLimit = (val>0) ? val : null;
+    const status = document.getElementById("limitStatus");
+    status.textContent = depositLimit ? `Daily deposit limit set to $${depositLimit.toFixed(2)}.` : "No deposit limit set.";
+  });
+
+  // ---------- self-exclusion ----------
+  let selfExcludedUntil = null;
+  let chosenDays = null;
+  document.querySelectorAll("#view-responsible .chip-row .chip").forEach(chip=>{
+    chip.addEventListener("click", ()=>{
+      document.querySelectorAll("#view-responsible .chip-row .chip").forEach(c=>c.classList.remove("selected"));
+      chip.classList.add("selected");
+      chosenDays = parseInt(chip.dataset.days,10);
+      document.getElementById("selfExcludeBtn").disabled = false;
+    });
+  });
+  document.getElementById("selfExcludeBtn")?.addEventListener("click", ()=>{
+    if(!chosenDays) return;
+    const until = new Date(Date.now() + chosenDays*86400000);
+    selfExcludedUntil = until;
+    document.getElementById("selfExcludeStatus").textContent =
+      `Account paused until ${until.toLocaleString()}. Deposits and bets are disabled until then.`;
+  });
+  function isExcluded(){
+    return selfExcludedUntil && new Date() < selfExcludedUntil;
+  }
+
+  // ---------- auth state (demo only, in-memory) ----------
+  let session = null; // {username}
+  let balance = 1000;
+  let transactions = [];
+
+  function logTx(type, amount, status){
+    transactions.unshift({type, amount, status, at: new Date()});
+    renderWallet();
+  }
+
+  function setLoggedIn(username){
+    session = {username};
+    document.getElementById("topActionsLoggedOut").style.display = "none";
+    document.getElementById("topActionsLoggedIn").style.display = "flex";
+    document.getElementById("acctName").textContent = username;
+    updateBalanceDisplay();
+  }
+  function setLoggedOut(){
+    session = null;
+    document.getElementById("topActionsLoggedOut").style.display = "flex";
+    document.getElementById("topActionsLoggedIn").style.display = "none";
+  }
+  function updateBalanceDisplay(){
+    document.getElementById("balDisplay").textContent = "$"+balance.toFixed(2);
+    document.getElementById("paymentBalance").textContent = "$"+balance.toFixed(2);
+    renderWallet();
+  }
+
+  function openModal(id){ document.getElementById(id).classList.add("show"); }
+  function closeModal(id){ document.getElementById(id).classList.remove("show"); }
+
+  document.getElementById("openLogin").addEventListener("click", ()=>openModal("loginOverlay"));
+  document.getElementById("openSignup").addEventListener("click", ()=>openModal("signupOverlay"));
+  document.getElementById("openDeposit").addEventListener("click", ()=>openModal("depositOverlay"));
+  document.querySelectorAll(".closeModal").forEach(b=>{
+    b.addEventListener("click", ()=> closeModal(b.dataset.target));
+  });
+  document.querySelectorAll(".modal-overlay").forEach(ov=>{
+    ov.addEventListener("click", e=>{ if(e.target===ov) ov.classList.remove("show"); });
+  });
+
+  document.getElementById("loginForm").addEventListener("submit", e=>{
+    e.preventDefault();
+    const u = document.getElementById("liUser").value.trim() || "player";
+    setLoggedIn(u);
+    closeModal("loginOverlay");
+    e.target.reset();
+  });
+  document.getElementById("signupForm").addEventListener("submit", e=>{
+    e.preventDefault();
+    const u = document.getElementById("suUser").value.trim() || "player";
+    balance = 1000;
+    transactions = [];
+    setLoggedIn(u);
+    logTx("Signup bonus", 1000, "Completed");
+    closeModal("signupOverlay");
+    e.target.reset();
+  });
+  document.getElementById("logoutBtn").addEventListener("click", ()=>{
+    setLoggedOut();
+    showView("board");
+  });
+  document.getElementById("acctBtn").addEventListener("click", ()=>{
+    document.getElementById("acctDrop").classList.toggle("show");
+  });
+  document.addEventListener("click", e=>{
+    if(!e.target.closest(".acct-menu")) document.getElementById("acctDrop").classList.remove("show");
+  });
+
+  // deposit
+  let depositAmt = 0;
+  document.getElementById("depositChips").addEventListener("click", e=>{
+    const chip = e.target.closest(".chip");
+    if(!chip) return;
+    document.querySelectorAll("#depositChips .chip").forEach(c=>c.classList.remove("selected"));
+    chip.classList.add("selected");
+    depositAmt = parseFloat(chip.dataset.amt);
+    document.getElementById("depAmt").value = depositAmt;
+  });
+  document.getElementById("depAmt").addEventListener("input", e=>{
+    document.querySelectorAll("#depositChips .chip").forEach(c=>c.classList.remove("selected"));
+    depositAmt = parseFloat(e.target.value)||0;
+  });
+  document.getElementById("confirmDeposit").addEventListener("click", ()=>{
+    if(!session){ closeModal("depositOverlay"); openModal("loginOverlay"); return; }
+    if(isExcluded()){ alert("Your account is paused under Responsible Gambling settings. Deposits are disabled until "+selfExcludedUntil.toLocaleString()+"."); return; }
+    const amt = parseFloat(document.getElementById("depAmt").value)||0;
+    if(amt<=0) return;
+    if(depositLimit && (depositedToday+amt)>depositLimit){
+      alert("This deposit would exceed your daily limit of $"+depositLimit.toFixed(2)+". You've deposited $"+depositedToday.toFixed(2)+" today.");
+      return;
+    }
+    balance += amt;
+    depositedToday += amt;
+    updateBalanceDisplay();
+    logTx("Deposit", amt, "Completed");
+    closeModal("depositOverlay");
+    document.getElementById("depAmt").value="";
+    document.querySelectorAll("#depositChips .chip").forEach(c=>c.classList.remove("selected"));
+  });
+
+  // withdraw
+  document.getElementById("walletDeposit")?.addEventListener("click", ()=>openModal("depositOverlay"));
+  document.getElementById("walletWithdraw")?.addEventListener("click", ()=>openModal("withdrawOverlay"));
+  const wdAmtInput = document.getElementById("wdAmt");
+  const wdWarn = document.getElementById("wdWarn");
+  wdAmtInput.addEventListener("input", ()=>{
+    const amt = parseFloat(wdAmtInput.value)||0;
+    wdWarn.style.display = (session && amt>balance) ? "block" : "none";
+  });
+  document.getElementById("confirmWithdraw").addEventListener("click", ()=>{
+    if(!session){ closeModal("withdrawOverlay"); openModal("loginOverlay"); return; }
+    const amt = parseFloat(wdAmtInput.value)||0;
+    if(amt<=0 || amt>balance) return;
+    balance -= amt;
+    updateBalanceDisplay();
+    logTx("Withdrawal", -amt, "Pending");
+    closeModal("withdrawOverlay");
+    wdAmtInput.value="";
+  });
+
+  function renderWallet(){
+    const big = document.getElementById("walletBalBig");
+    if(big) big.textContent = "$"+balance.toFixed(2);
+    const txList = document.getElementById("txList");
+    if(!txList) return;
+    if(transactions.length===0){
+      txList.innerHTML = '<div class="empty-state">No transactions yet.</div>';
+      return;
+    }
+    txList.innerHTML = transactions.map(t=>{
+      const pos = t.amount>=0;
+      return `
+        <div class="tx-row">
+          <div><span class="tx-type">${t.type}</span><span class="tx-time">${t.at.toLocaleString()}</span></div>
+          <span style="color:var(--muted);">${t.status}</span>
+          <span class="tx-amt ${pos ? "pos" : "neg"}">${pos ? "+" : "-"}$${Math.abs(t.amount).toFixed(2)}</span>
+        </div>`;
+    }).join("");
+  }
+
+  // ---------- bet slip state ----------
+  let picks = {};
+  let placedBets = [];
+
+  function keyFor(el){
+    const container = el.closest("[data-match]");
+    return container.dataset.match + "|" + el.dataset.market;
+  }
+
+  document.body.addEventListener("click", e=>{
+    const btn = e.target.closest(".odd-btn");
+    if(!btn || btn.dataset.price === undefined) return;
+    const container = btn.closest("[data-match]");
+    const k = keyFor(btn);
+    const existing = picks[k];
+
+    container.querySelectorAll(".odd-btn").forEach(b=>b.classList.remove("selected"));
+
+    if(existing && existing.sel === btn.dataset.sel){
+      delete picks[k];
+    } else {
+      picks[k] = {
+        teams: container.dataset.teams,
+        market: btn.dataset.market,
+        sel: btn.dataset.sel,
+        price: parseFloat(btn.dataset.price)
+      };
+      btn.classList.add("selected");
+    }
+    renderSlip();
+  });
+
+  function renderSlip(){
+    const entries = Object.entries(picks);
+    const bodies = [document.getElementById("slipBodyDesktop"), document.getElementById("slipBodyMobile")];
+    const footDesktop = document.getElementById("slipFootDesktop");
+    const footMobile = document.getElementById("slipFootMobile");
+
+    if(entries.length === 0){
+      bodies.forEach(b=> b.innerHTML = '<div class="slip-empty">Pick an outcome to add it here.</div>');
+      footDesktop.innerHTML = "";
+      footMobile.innerHTML = "";
+    } else {
+      const html = entries.map(([k,p])=>`
+        <div class="pick" data-key="${k}">
+          <button class="rm" aria-label="Remove selection">×</button>
+          <div class="pteams">${p.teams}</div>
+          <div class="pmarket">${p.market} · ${p.sel}</div>
+          <div class="pval num">${p.price.toFixed(2)}</div>
+        </div>
+      `).join("");
+      bodies.forEach(b=> b.innerHTML = html);
+
+      const combined = entries.reduce((acc,[,p])=>acc*p.price, 1);
+      const footHtml = `
+        <div class="stake-row">
+          <label for="stakeInputX">Stake ($)</label>
+          <input class="stake-input num stakeField" type="number" min="0" step="1" value="10">
+        </div>
+        <div class="insufficient" style="display:none;">Exceeds available balance.</div>
+        <div class="payout-row"><span>Combined odds</span><span class="num">${combined.toFixed(2)}</span></div>
+        <div class="payout-row"><span>Potential payout</span><b class="payoutVal num">$${(10*combined).toFixed(2)}</b></div>
+        <button class="btn btn-amber place-btn">${session ? "Place bet" : "Log in to place bet"}</button>
+      `;
+      footDesktop.innerHTML = footHtml;
+      footMobile.innerHTML = footHtml;
+
+      [footDesktop, footMobile].forEach(foot=>{
+        const input = foot.querySelector(".stakeField");
+        const payoutVal = foot.querySelector(".payoutVal");
+        const warn = foot.querySelector(".insufficient");
+        const placeBtn = foot.querySelector(".place-btn");
+
+        function refresh(){
+          const stake = parseFloat(input.value)||0;
+          payoutVal.textContent = "$" + (stake*combined).toFixed(2);
+          const tooMuch = session && stake>balance;
+          warn.style.display = tooMuch ? "block" : "none";
+          placeBtn.disabled = !session || stake<=0 || tooMuch;
+        }
+        input.addEventListener("input", refresh);
+        refresh();
+
+        placeBtn.addEventListener("click", ()=>{
+          if(!session){ openModal("loginOverlay"); return; }
+          if(isExcluded()){ alert("Your account is paused under Responsible Gambling settings. Betting is disabled until "+selfExcludedUntil.toLocaleString()+"."); return; }
+          const stake = parseFloat(input.value)||0;
+          if(stake<=0 || stake>balance) return;
+          balance -= stake;
+          updateBalanceDisplay();
+          placedBets.unshift({
+            id: "bet-"+Date.now(),
+            legs: entries.map(([,p])=>p),
+            stake, combined,
+            payout: stake*combined,
+            placedAt: new Date(),
+            status: "Pending"
+          });
+          picks = {};
+          document.querySelectorAll(".odd-btn.selected").forEach(b=>b.classList.remove("selected"));
+          renderSlip();
+          renderBets();
+          closeSheet();
+        });
+      });
+    }
+
+    document.querySelectorAll(".pick .rm").forEach(rm=>{
+      rm.addEventListener("click", ()=>{
+        const key = rm.closest(".pick").dataset.key;
+        delete picks[key];
+        document.querySelectorAll(".odd-btn.selected").forEach(b=>{
+          if(keyFor(b)===key) b.classList.remove("selected");
+        });
+        renderSlip();
+      });
+    });
+
+    const count = entries.length;
+    document.getElementById("mobileBarLeft").textContent = count + (count===1 ? " selection" : " selections");
+    document.getElementById("mobileBar").classList.toggle("show", count>0);
+  }
+
+  function renderBets(){
+    const list = document.getElementById("betsList");
+    if(placedBets.length===0){
+      list.innerHTML = '<div class="empty-state">No bets placed yet. Add a selection and place a bet to see it here.</div>';
+      return;
+    }
+    list.innerHTML = placedBets.map(b=>`
+      <div class="bet-card">
+        <div class="bet-card-top">
+          <span style="font-size:12px;color:var(--muted);">${b.placedAt.toLocaleString()}</span>
+          <span class="bet-status pending">${b.status}</span>
+        </div>
+        ${b.legs.map(l=>`<div class="bet-leg"><b>${l.teams}</b> — ${l.market} · ${l.sel} @ ${l.price.toFixed(2)}</div>`).join("")}
+        <div class="bet-foot">
+          <span>Stake $${b.stake.toFixed(2)} · Odds ${b.combined.toFixed(2)}</span>
+          <span>Payout <b>$${b.payout.toFixed(2)}</b></span>
+        </div>
+      </div>
+    `).join("");
+  }
+
+  // ---------- mobile sheet ----------
+  const sheet = document.getElementById("sheet");
+  const overlay = document.getElementById("overlay");
+  function openSheetFn(){ sheet.classList.add("show"); overlay.classList.add("show"); }
+  function closeSheet(){ sheet.classList.remove("show"); overlay.classList.remove("show"); }
+  document.getElementById("mobileBar").addEventListener("click", openSheetFn);
+  document.getElementById("closeSheet").addEventListener("click", closeSheet);
+  overlay.addEventListener("click", closeSheet);
+
+  // ---------- bank interface ----------
+  // "demo" simulates the provider. "live" is where the real calls go (see BankProvider).
+  const PAYMENT_MODE = "demo";
+  const DEMO_BANKS = ["Northline Bank","Harbor Credit Union","Summit National","Riverbend Bank"];
+  let linkedBanks = [], transfers = [], bankDir = "deposit";
+
+  const BankProvider = {
+    async linkAccount(bankName){
+      if(PAYMENT_MODE === "live"){
+        // 1) POST /api/bank/link-session -> { client_secret }   (server creates the session with your secret key)
+        // 2) stripe.collectFinancialConnectionsAccounts({ clientSecret })  (or Plaid Link) -> provider-hosted bank login
+        // 3) POST /api/bank/attach -> server stores the token, returns { id, name, last4 }
+        throw new Error("Live mode needs the backend and provider keys.");
+      }
+      await new Promise(r=>setTimeout(r,1100));
+      return {id:"ba_"+Date.now(), name:bankName, last4:String(1000+Math.floor(Math.random()*9000))};
+    },
+    async startTransfer(t){
+      if(PAYMENT_MODE === "live"){
+        // POST /api/bank/transfers with an Idempotency-Key. Balance changes only when the
+        // provider's signed webhook confirms settlement, never from this response.
+        throw new Error("Live mode needs the backend and provider keys.");
+      }
+      return {id:"tr_"+Date.now()};
+    }
+  };
+
+  function renderBanks(){
+    const list = document.getElementById("bankList");
+    const sel = document.getElementById("bankSelect");
+    list.innerHTML = linkedBanks.length
+      ? linkedBanks.map(b=>`<div class="bank-row"><b>${b.name}</b><span>Checking ••••${b.last4}</span></div>`).join("")
+      : '<div class="payment-method-empty">No bank account linked yet. Link an account to start a transfer.</div>';
+    sel.innerHTML = linkedBanks.length
+      ? linkedBanks.map(b=>`<option value="${b.id}">${b.name} ••••${b.last4}</option>`).join("")
+      : '<option value="">Link a bank account first</option>';
+  }
+
+  function renderTransfers(){
+    const el = document.getElementById("transferList");
+    if(!transfers.length){ el.innerHTML = '<div class="empty-state bank-transfer-empty">No bank transfers yet. Your transfer activity will appear here.</div>'; return; }
+    const stages = ["Initiated","Processing","Completed"];
+    el.innerHTML = transfers.map(t=>`
+      <div class="tx-row" style="grid-template-columns:1fr auto;">
+        <div>
+          <span class="tx-type">${t.dir==="deposit" ? "Deposit from" : "Withdrawal to"} ${t.bank}</span>
+          <span class="tx-time">${t.at.toLocaleString()}</span>
+          <div class="steps">${stages.map(x=>`<i class="${stages.indexOf(x)<=stages.indexOf(t.status)?"on":""}">${x}</i>`).join("")}</div>
+        </div>
+        <span class="tx-amt ${t.dir==="deposit"?"pos":"neg"}">${t.dir==="deposit"?"+":"-"}$${t.amount.toFixed(2)}</span>
+      </div>`).join("");
+  }
+
+  document.getElementById("linkBankBtn").addEventListener("click", ()=>{
+    if(!session){ openModal("loginOverlay"); return; }
+    document.getElementById("bankStep").innerHTML =
+      '<p class="rg-copy" style="margin-top:0;">Choose your bank to continue in a secure window.</p>' +
+      DEMO_BANKS.map(b=>`<button class="bank-pick" data-bank="${b}">${b}</button>`).join("");
+    openModal("bankOverlay");
+  });
+  document.getElementById("bankStep").addEventListener("click", async e=>{
+    const pick = e.target.closest(".bank-pick");
+    if(!pick) return;
+    const step = document.getElementById("bankStep");
+    step.innerHTML = '<p class="rg-copy">Connecting securely to ' + pick.dataset.bank + '...</p>';
+    try{
+      const acct = await BankProvider.linkAccount(pick.dataset.bank);
+      linkedBanks.push(acct);
+      renderBanks();
+      step.innerHTML = '<p class="rg-copy">Linked ' + acct.name + ' ••••' + acct.last4 + '.</p><button class="btn btn-amber" id="bankDone">Done</button>';
+      document.getElementById("bankDone").addEventListener("click", ()=>closeModal("bankOverlay"));
+    }catch(err){
+      step.innerHTML = '<p class="rg-copy" style="color:var(--live);">' + err.message + '</p>';
+    }
+  });
+
+  document.getElementById("bankDirChips").addEventListener("click", e=>{
+    const c = e.target.closest(".chip"); if(!c) return;
+    document.querySelectorAll("#bankDirChips .chip").forEach(x=>x.classList.remove("selected"));
+    document.querySelectorAll("#bankDirChips .chip").forEach(x=>x.setAttribute("aria-pressed", String(x===c)));
+    c.classList.add("selected"); bankDir = c.dataset.dir;
+  });
+  document.getElementById("bankAmountChips").addEventListener("click", e=>{
+    const chip = e.target.closest("[data-amount]");
+    if(!chip) return;
+    document.querySelectorAll("#bankAmountChips .chip").forEach(c=>c.classList.toggle("selected", c===chip));
+    document.getElementById("bankAmt").value = chip.dataset.amount;
+    document.getElementById("bankMsg").style.display = "none";
+  });
+  document.getElementById("bankAmt").addEventListener("input", ()=>{
+    document.querySelectorAll("#bankAmountChips .chip").forEach(c=>c.classList.remove("selected"));
+    document.getElementById("bankMsg").style.display = "none";
+  });
+
+  document.getElementById("bankTransferBtn").addEventListener("click", async ()=>{
+    const msg = document.getElementById("bankMsg");
+    const fail = m=>{ msg.textContent = m; msg.style.display = "block"; };
+    msg.style.display = "none";
+    if(!session){ openModal("loginOverlay"); return; }
+    if(isExcluded()) return fail("Your account is paused under Responsible Gambling settings.");
+    const acct = linkedBanks.find(b=>b.id===document.getElementById("bankSelect").value);
+    if(!acct) return fail("Link a bank account first.");
+    const amt = parseFloat(document.getElementById("bankAmt").value)||0;
+    if(amt<=0) return fail("Enter an amount.");
+    if(bankDir==="deposit"){
+      if(depositLimit && depositedToday+amt>depositLimit) return fail("This exceeds your daily deposit limit of $"+depositLimit.toFixed(2)+".");
+    } else if(amt>balance) return fail("Exceeds available balance.");
+
+    let res;
+    try{ res = await BankProvider.startTransfer({dir:bankDir, amount:amt, bankId:acct.id}); }
+    catch(err){ return fail(err.message); }
+
+    const t = {id:res.id, dir:bankDir, amount:amt, bank:acct.name, status:"Initiated", at:new Date()};
+    transfers.unshift(t);
+    let tx = null;
+    if(t.dir==="withdraw"){ balance -= amt; updateBalanceDisplay(); logTx("Bank withdrawal", -amt, "Pending"); tx = transactions[0]; }
+    else { depositedToday += amt; }
+    document.getElementById("bankAmt").value = "";
+    document.querySelectorAll("#bankAmountChips .chip").forEach(c=>c.classList.remove("selected"));
+    renderTransfers();
+
+    setTimeout(()=>{ t.status="Processing"; renderTransfers(); }, 2500);
+    setTimeout(()=>{   // in production this is the provider's signed webhook
+      t.status="Completed";
+      if(t.dir==="deposit"){ balance += amt; updateBalanceDisplay(); logTx("Bank deposit", amt, "Completed"); }
+      else if(tx){ tx.status="Completed"; renderWallet(); }
+      renderTransfers();
+    }, 6000);
+  });
+
+  renderBanks();
+  renderTransfers();
+
+  renderSlip();
+  renderBets();
+  renderWallet();
+})();
+</script>
+</body>
+</html>
